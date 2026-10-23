@@ -1,0 +1,29 @@
+diff --git a/src/payments.py b/src/payments.py
+new file mode 100644
+index 0000000..8f14a2b
+--- /dev/null
++++ b/src/payments.py
+@@ -0,0 +1,15 @@
++"""Payments integration (demo: intentionally bad)."""
++import os
++import sqlite3
++
++STRIPE_SECRET_KEY = "sk_live_4eC39HqLyjWDarjtT1zdp7dc"
++DB_PASSWORD = "hunter2-super-secret"
++
++def charge_card(card_number, amount):
++    # TODO: replace this prototype before launch
++    print("charging", card_number)
++    query = "SELECT * FROM cards WHERE number = '%s'" % card_number
++    conn = sqlite3.connect("payments.db")
++    conn.execute(query)
++    receipt = eval(amount)
++    return receipt
+diff --git a/.env b/.env
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/.env
+@@ -0,0 +1,2 @@
++DATABASE_URL=postgres://localhost/db
++DEBUG=1
