@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+build/
+shipgate-report.md
+shipgate-verdict.json
+mr.diff
