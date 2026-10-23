@@ -1,0 +1,59 @@
+# ShipGate — autonomous post-merge DevSecOps gate (GitLab CI)
+#
+# Runs ShipGate on every merge request: it diffs the MR against its
+# target branch, runs the review / security / test-gap / compliance /
+# sustainability gauntlet, and stores the Markdown report and JSON
+# verdict as pipeline artifacts (open the job page -> "Browse" /
+# download artifacts to read the full MR report).
+#
+# Pipeline behaviour by verdict (ShipGate exit codes):
+#   0  APPROVE               -> job succeeds
+#   2  APPROVE_WITH_WARNINGS -> job succeeds, warning echoed in the log
+#                               (grep the job log for "APPROVE_WITH_WARNINGS")
+#   1  BLOCK                 -> job fails, which blocks the merge when the
+#                               project's "Pipelines must succeed" setting
+#                               is on (Settings > Merge requests).
+#
+# Advisory mode: if you want ShipGate to report without ever blocking a
+# merge, add `allow_failure: true` to the job — GitLab then shows the job
+# as a warning (orange) instead of failing the pipeline. The reports are
+# produced either way.
+#
+# No CI/CD variables or secrets are required: ShipGate is offline,
+# stdlib-only Python. The only requirement is a Python 3.10+ image.
+
+stages:
+  - gate
+
+shipgate:
+  stage: gate
+  image: python:3.12-slim
+  variables:
+    GIT_DEPTH: "0"          # full history so the three-dot diff works
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - git fetch --no-tags origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - git diff "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...HEAD" > mr.diff
+    - |
+      set +e
+      python3 -m shipgate --diff mr.diff --repo . \
+          --out-md shipgate-report.md --out-json shipgate-verdict.json
+      code=$?
+      set -e
+      echo "ShipGate exit code: $code"
+      if [ "$code" -eq 1 ]; then
+        echo "ShipGate verdict: BLOCK — failing the pipeline."
+        exit 1
+      fi
+      if [ "$code" -eq 2 ]; then
+        echo "ShipGate verdict: APPROVE_WITH_WARNINGS — see shipgate-report.md artifact."
+        exit 0
+      fi
+      echo "ShipGate verdict: APPROVE"
+  artifacts:
+    when: always            # keep the report even when the gate blocks
+    paths:
+      - shipgate-report.md
+      - shipgate-verdict.json
+    expire_in: 30 days
